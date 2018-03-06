@@ -1,3 +1,0 @@
-
-## SEDIC Alphashape Visualization Tool
-
