@@ -233,19 +233,79 @@ var angle = function angle(_ref3, _ref4) {
   return ag;
 };
 
-var processNeighbors = function processNeighbors(_ref5) {
-  var nodes = _ref5.nodes,
-      range = _ref5.range;
+var findBallCenter = function findBallCenter(_ref5) {
+  var node = _ref5.node,
+      ballDiameter = _ref5.ballDiameter;
 
-  var V = nodes.length;
+  var candidates = [];
+  var radius = ballDiameter / 2;
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;
 
   try {
-    for (var _iterator = nodes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-      var node = _step.value;
-      node.neighbors = [];
+    for (var _iterator = node.neighbors[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+      var neighbor = _step.value;
+      var x1 = node.x,
+          y1 = node.y;
+      var x2 = neighbor.x,
+          y2 = neighbor.y;
+      var _iteratorNormalCompletion2 = true;
+      var _didIteratorError2 = false;
+      var _iteratorError2 = undefined;
+
+      try {
+
+        for (var _iterator2 = findCenters({ x1: x1, y1: y1, x2: x2, y2: y2, radius: radius })[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+          var center = _step2.value;
+
+          var ok = true;
+          var _iteratorNormalCompletion3 = true;
+          var _didIteratorError3 = false;
+          var _iteratorError3 = undefined;
+
+          try {
+            for (var _iterator3 = node.neighbors[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+              var otherNeighbor = _step3.value;
+
+              if (otherNeighbor === neighbor) continue;
+              if (distance(center, otherNeighbor) < radius) {
+                ok = false;
+              }
+            }
+          } catch (err) {
+            _didIteratorError3 = true;
+            _iteratorError3 = err;
+          } finally {
+            try {
+              if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                _iterator3.return();
+              }
+            } finally {
+              if (_didIteratorError3) {
+                throw _iteratorError3;
+              }
+            }
+          }
+
+          if (ok) {
+            candidates.push(center);
+          }
+        }
+      } catch (err) {
+        _didIteratorError2 = true;
+        _iteratorError2 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion2 && _iterator2.return) {
+            _iterator2.return();
+          }
+        } finally {
+          if (_didIteratorError2) {
+            throw _iteratorError2;
+          }
+        }
+      }
     }
   } catch (err) {
     _didIteratorError = true;
@@ -262,36 +322,24 @@ var processNeighbors = function processNeighbors(_ref5) {
     }
   }
 
-  for (var i = 0; i < V; i++) {
-    for (var j = i + 1; j < V; j++) {
-      if (Math.pow(nodes[i].x - nodes[j].x, 2) + Math.pow(nodes[i].y - nodes[j].y, 2) <= Math.pow(range, 2)) {
-        nodes[i].neighbors.push(nodes[j]);
-        nodes[j].neighbors.push(nodes[i]);
-      }
-    }
+  candidates.sort(function (center1, center2) {
+    return angle(center1, node) - angle(center2, node);
+  });
+  if (candidates.length) {
+    return candidates[0];
+  } else {
+    return null;
   }
 };
 
-$('#generate-btn').click(function () {
-
-  if (draw) draw.remove();
-
-  draw = (0, _svg2.default)('graph-container').size("100%", "100%").panZoom();
-  var selectLayer = draw.group();
-  var haloLayer = draw.group();
-  var edgeLayer = draw.group();
-  var nodeLayer = draw.group();
-
-  var svg = draw.node;
-  var height = parseInt($('#height-input').val());
-  var width = parseInt($('#width-input').val());
-  var range = parseInt($('#range-input').val());
-  var GRID_HEIGHT = parseInt($('#grid-height-input').val());
-  var GRID_WIDTH = parseInt($('#grid-width-input').val());
-  var V = parseInt($('#v-input').val());
+var generateNodes = function generateNodes(_ref6) {
+  var width = _ref6.width,
+      height = _ref6.height,
+      GRID_HEIGHT = _ref6.GRID_HEIGHT,
+      GRID_WIDTH = _ref6.GRID_WIDTH,
+      V = _ref6.V;
 
   var nodes = [];
-
   var nextId = 0;
   for (var i = 0; i < GRID_HEIGHT; i++) {
     for (var j = 0; j < GRID_WIDTH; j++) {
@@ -312,106 +360,93 @@ $('#generate-btn').click(function () {
     nextId++;
     nodes.push({ x: _x, y: _y, id: nextId });
   }
+  return nodes;
+};
 
-  processNeighbors({ nodes: nodes, range: range });
-  var currentBall = void 0;
+var processNeighbors = function processNeighbors(_ref7) {
+  var nodes = _ref7.nodes,
+      range = _ref7.range;
+
+  var V = nodes.length;
+  var _iteratorNormalCompletion4 = true;
+  var _didIteratorError4 = false;
+  var _iteratorError4 = undefined;
+
+  try {
+    for (var _iterator4 = nodes[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+      var node = _step4.value;
+      node.neighbors = [];
+    }
+  } catch (err) {
+    _didIteratorError4 = true;
+    _iteratorError4 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion4 && _iterator4.return) {
+        _iterator4.return();
+      }
+    } finally {
+      if (_didIteratorError4) {
+        throw _iteratorError4;
+      }
+    }
+  }
+
+  for (var i = 0; i < V; i++) {
+    for (var j = i + 1; j < V; j++) {
+      if (Math.pow(nodes[i].x - nodes[j].x, 2) + Math.pow(nodes[i].y - nodes[j].y, 2) <= Math.pow(range, 2)) {
+        nodes[i].neighbors.push(nodes[j]);
+        nodes[j].neighbors.push(nodes[i]);
+      }
+    }
+  }
+
+  return nodes;
+};
+
+var drawNodes = function drawNodes(_ref8) {
+  var nodes = _ref8.nodes,
+      nodeLayer = _ref8.nodeLayer;
+
   nodes.forEach(function (node) {
     node.circle = nodeLayer.circle(NODE_CIRCLE_RADIUS * 2).center(node.x, node.y).fill('#111');
+  });
 
+  return nodes;
+};
+
+$('#generate-btn').click(function () {
+
+  if (draw) draw.remove();
+
+  draw = (0, _svg2.default)('graph-container').size("100%", "100%").panZoom();
+  var svg = draw.node;
+  var selectLayer = draw.group();
+  var haloLayer = draw.group();
+  var edgeLayer = draw.group();
+  var nodeLayer = draw.group();
+
+  var height = parseInt($('#height-input').val());
+  var width = parseInt($('#width-input').val());
+  var range = parseInt($('#range-input').val());
+  var GRID_HEIGHT = parseInt($('#grid-height-input').val());
+  var GRID_WIDTH = parseInt($('#grid-width-input').val());
+  var V = parseInt($('#v-input').val());
+
+  var currentBall = void 0;
+
+  var nodes = generateNodes({ width: width, height: height, GRID_WIDTH: GRID_WIDTH, GRID_HEIGHT: GRID_HEIGHT, V: V });
+  nodes = drawNodes({ nodes: nodes, nodeLayer: nodeLayer });
+  nodes = processNeighbors({ nodes: nodes, range: range });
+
+  nodes.forEach(function (node) {
     node.circle.mousedown(function (e) {
       if (currentBall) {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
       }
-      var candidates = [];
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
-
-      try {
-        for (var _iterator2 = node.neighbors[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-          var neighbor = _step2.value;
-          var x1 = node.x,
-              y1 = node.y;
-          var x2 = neighbor.x,
-              y2 = neighbor.y;
-          var _iteratorNormalCompletion3 = true;
-          var _didIteratorError3 = false;
-          var _iteratorError3 = undefined;
-
-          try {
-
-            for (var _iterator3 = findCenters({ x1: x1, y1: y1, x2: x2, y2: y2, radius: range / 2 })[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-              var _center = _step3.value;
-
-              var ok = true;
-              var _iteratorNormalCompletion4 = true;
-              var _didIteratorError4 = false;
-              var _iteratorError4 = undefined;
-
-              try {
-                for (var _iterator4 = node.neighbors[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-                  var otherNeighbor = _step4.value;
-
-                  if (otherNeighbor === neighbor) continue;
-                  if (distance(_center, otherNeighbor) < range / 2) {
-                    ok = false;
-                  }
-                }
-              } catch (err) {
-                _didIteratorError4 = true;
-                _iteratorError4 = err;
-              } finally {
-                try {
-                  if (!_iteratorNormalCompletion4 && _iterator4.return) {
-                    _iterator4.return();
-                  }
-                } finally {
-                  if (_didIteratorError4) {
-                    throw _iteratorError4;
-                  }
-                }
-              }
-
-              if (ok) {
-                candidates.push(_center);
-              }
-            }
-          } catch (err) {
-            _didIteratorError3 = true;
-            _iteratorError3 = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion3 && _iterator3.return) {
-                _iterator3.return();
-              }
-            } finally {
-              if (_didIteratorError3) {
-                throw _iteratorError3;
-              }
-            }
-          }
-        }
-      } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return) {
-            _iterator2.return();
-          }
-        } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
-          }
-        }
-      }
-
-      candidates.sort(function (center1, center2) {
-        return angle(center1, node) - angle(center2, node);
-      });
-      if (candidates.length) {
-        var center = candidates[0];
+      var center = findBallCenter({ node: node, ballDiameter: range });
+      if (center) {
         currentBall = {
           circle: haloLayer.circle(range).center(center.x, center.y).fill('none').stroke({ color: '#f06', width: 0.5 }),
           center: center,
@@ -433,10 +468,10 @@ $('#generate-btn').click(function () {
       isSeleting = true;
 
       var _originPosition = originPosition({ x: e.clientX, y: e.clientY, svg: svg }),
-          _x2 = _originPosition.x,
-          _y2 = _originPosition.y;
+          x = _originPosition.x,
+          y = _originPosition.y;
 
-      var polyline = selectLayer.polyline([_x2, _y2]).fill('#ffccca').stroke({ width: 0.5 });
+      var polyline = selectLayer.polyline([x, y]).fill('#ffccca').stroke({ width: 0.5 });
       polylines.push(polyline);
     }
   });
@@ -445,11 +480,11 @@ $('#generate-btn').click(function () {
     if (state === 'normal') {} else if (state === 'deleting') {
       if (isSeleting) {
         var _originPosition2 = originPosition({ x: e.clientX, y: e.clientY, svg: svg }),
-            _x3 = _originPosition2.x,
-            _y3 = _originPosition2.y;
+            x = _originPosition2.x,
+            y = _originPosition2.y;
 
         var polyline = polylines[polylines.length - 1];
-        polyline.plot(polyline.array().value.concat([[_x3, _y3]])).fill('#ffccca').stroke({ width: 0.5 });
+        polyline.plot(polyline.array().value.concat([[x, y]])).fill('#ffccca').stroke({ width: 0.5 });
       }
     }
   });
@@ -468,8 +503,8 @@ $('#generate-btn').click(function () {
         try {
           for (var _iterator5 = nodes[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
             var node = _step5.value;
-            var _x4 = node.x,
-                _y4 = node.y;
+            var x = node.x,
+                y = node.y;
             var _iteratorNormalCompletion6 = true;
             var _didIteratorError6 = false;
             var _iteratorError6 = undefined;
@@ -478,8 +513,8 @@ $('#generate-btn').click(function () {
               for (var _iterator6 = polylines[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
                 var polyline = _step6.value;
 
-                if ((0, _pointInPolygon2.default)([_x4, _y4], polyline.array().value)) {
-                  node.halo = haloLayer.circle(4 * NODE_CIRCLE_RADIUS).center(_x4, _y4).fill('#ff6262');
+                if ((0, _pointInPolygon2.default)([x, y], polyline.array().value)) {
+                  node.halo = haloLayer.circle(4 * NODE_CIRCLE_RADIUS).center(x, y).fill('#ff6262');
                 }
               }
             } catch (err) {
@@ -567,10 +602,10 @@ $('#generate-btn').click(function () {
   });
 
   var path = [];
-  var roll = function roll(_ref6) {
-    var ballDiameter = _ref6.ballDiameter,
-        afterRoll = _ref6.afterRoll,
-        edgeColor = _ref6.edgeColor;
+  var roll = function roll(_ref9) {
+    var ballDiameter = _ref9.ballDiameter,
+        afterRoll = _ref9.afterRoll,
+        edgeColor = _ref9.edgeColor;
     var _currentBall = currentBall,
         center = _currentBall.center,
         node = _currentBall.node;
@@ -592,12 +627,12 @@ $('#generate-btn').click(function () {
       var center2Angle = angle(node, center2);
 
       if (ccwAngle(centerAngle, center1Angle) > ccwAngle(centerAngle, center2Angle)) {
-        var _ref7 = [center2, center1];
-        center1 = _ref7[0];
-        center2 = _ref7[1];
-        var _ref8 = [center2Angle, center1Angle];
-        center1Angle = _ref8[0];
-        center2Angle = _ref8[1];
+        var _ref10 = [center2, center1];
+        center1 = _ref10[0];
+        center2 = _ref10[1];
+        var _ref11 = [center2Angle, center1Angle];
+        center1Angle = _ref11[0];
+        center2Angle = _ref11[1];
       }
 
       var chosenCenter = center1;
@@ -663,9 +698,9 @@ $('#generate-btn').click(function () {
     $('#firstroll-btn').off('click');
     $('#secondroll-btn').off('click');
     var ballDiameter = parseInt($('#second-ball-input').val());
-    var ids = new Set(path.map(function (_ref9) {
-      var from = _ref9.from,
-          to = _ref9.to;
+    var ids = new Set(path.map(function (_ref12) {
+      var from = _ref12.from,
+          to = _ref12.to;
       return from;
     }));
     var boundNodes = nodes.filter(function (node) {
@@ -704,7 +739,7 @@ $('#generate-btn').click(function () {
             try {
 
               for (var _iterator9 = findCenters({ x1: x1, y1: y1, x2: x2, y2: y2, radius: ballDiameter / 2 })[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
-                var _center2 = _step9.value;
+                var _center = _step9.value;
 
                 var ok = true;
                 var _iteratorNormalCompletion10 = true;
@@ -716,7 +751,7 @@ $('#generate-btn').click(function () {
                     var otherNeighbor = _step10.value;
 
                     if (otherNeighbor === neighbor) continue;
-                    if (distance(_center2, otherNeighbor) < ballDiameter / 2) {
+                    if (distance(_center, otherNeighbor) < ballDiameter / 2) {
                       ok = false;
                     }
                   }
@@ -736,7 +771,7 @@ $('#generate-btn').click(function () {
                 }
 
                 if (ok) {
-                  candidates.push(_center2);
+                  candidates.push(_center);
                 }
               }
             } catch (err) {

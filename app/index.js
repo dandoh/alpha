@@ -57,43 +57,39 @@ const angle = ({x: x1, y: y1}, {x: x2, y: y2}) => {
   return ag;
 };
 
+const findBallCenter = ({node, ballDiameter}) => {
+  let candidates = [];
+  let radius = ballDiameter / 2;
+  for (let neighbor of node.neighbors) {
+    let {x: x1, y: y1} = node;
+    let {x: x2, y: y2} = neighbor;
 
-const processNeighbors = ({nodes, range}) => {
-  let V = nodes.length;
-  for (let node of nodes) node.neighbors = [];
+    for (let center of findCenters({x1, y1, x2, y2, radius})) {
+      let ok = true;
+      for (let otherNeighbor of node.neighbors) {
+        if (otherNeighbor === neighbor) continue;
+        if (distance(center, otherNeighbor) < radius) {
+          ok = false;
+        }
+      }
 
-  for (let i = 0; i < V; i++) {
-    for (let j = i + 1; j < V; j++) {
-      if ((nodes[i].x - nodes[j].x) ** 2 + (nodes[i].y - nodes[j].y) ** 2 <= range ** 2) {
-        nodes[i].neighbors.push(nodes[j]);
-        nodes[j].neighbors.push(nodes[i]);
+      if (ok) {
+        candidates.push(center);
       }
     }
   }
+
+  candidates.sort((center1, center2) => angle(center1, node) - angle(center2, node));
+  if (candidates.length) {
+    return candidates[0];
+  } else {
+    return null;
+  }
 };
 
-$('#generate-btn').click(function () {
 
-
-  if (draw) draw.remove();
-
-  draw = SVG('graph-container').size("100%", "100%").panZoom();
-  let selectLayer = draw.group();
-  let haloLayer = draw.group();
-  let edgeLayer = draw.group();
-  let nodeLayer = draw.group();
-
-
-  const svg = draw.node;
-  const height = parseInt($('#height-input').val());
-  const width = parseInt($('#width-input').val());
-  const range = parseInt($('#range-input').val());
-  const GRID_HEIGHT = parseInt($('#grid-height-input').val());
-  const GRID_WIDTH = parseInt($('#grid-width-input').val());
-  const V = parseInt($('#v-input').val());
-
+const generateNodes = ({width, height, GRID_HEIGHT, GRID_WIDTH, V}) => {
   let nodes = [];
-
   let nextId = 0;
   for (let i = 0; i < GRID_HEIGHT; i++) {
     for (let j = 0; j < GRID_WIDTH; j++) {
@@ -114,44 +110,71 @@ $('#generate-btn').click(function () {
     nextId++;
     nodes.push({x, y, id: nextId});
   }
+  return nodes;
+};
 
 
-  processNeighbors({nodes, range});
-  let currentBall;
+const processNeighbors = ({nodes, range}) => {
+  let V = nodes.length;
+  for (let node of nodes) node.neighbors = [];
+
+  for (let i = 0; i < V; i++) {
+    for (let j = i + 1; j < V; j++) {
+      if ((nodes[i].x - nodes[j].x) ** 2 + (nodes[i].y - nodes[j].y) ** 2 <= range ** 2) {
+        nodes[i].neighbors.push(nodes[j]);
+        nodes[j].neighbors.push(nodes[i]);
+      }
+    }
+  }
+
+  return nodes;
+};
+
+const drawNodes = ({nodes, nodeLayer}) => {
   nodes.forEach(node => {
     node.circle = nodeLayer
       .circle(NODE_CIRCLE_RADIUS * 2)
       .center(node.x, node.y)
       .fill('#111');
+  });
 
+  return nodes;
+};
+
+$('#generate-btn').click(function () {
+
+
+  if (draw) draw.remove();
+
+  draw = SVG('graph-container').size("100%", "100%").panZoom();
+  const svg = draw.node;
+  const selectLayer = draw.group();
+  const haloLayer = draw.group();
+  const edgeLayer = draw.group();
+  const nodeLayer = draw.group();
+
+
+  const height = parseInt($('#height-input').val());
+  const width = parseInt($('#width-input').val());
+  const range = parseInt($('#range-input').val());
+  const GRID_HEIGHT = parseInt($('#grid-height-input').val());
+  const GRID_WIDTH = parseInt($('#grid-width-input').val());
+  const V = parseInt($('#v-input').val());
+
+  let currentBall;
+
+  let nodes = generateNodes({width, height, GRID_WIDTH, GRID_HEIGHT, V})
+  nodes = drawNodes({nodes, nodeLayer});
+  nodes = processNeighbors({nodes, range});
+
+  nodes.forEach(node => {
     node.circle.mousedown((e) => {
       if (currentBall) {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
       }
-      let candidates = [];
-      for (let neighbor of node.neighbors) {
-        let {x: x1, y: y1} = node;
-        let {x: x2, y: y2} = neighbor;
-
-        for (let center of findCenters({x1, y1, x2, y2, radius: range / 2})) {
-          let ok = true;
-          for (let otherNeighbor of node.neighbors) {
-            if (otherNeighbor === neighbor) continue;
-            if (distance(center, otherNeighbor) < range / 2) {
-              ok = false;
-            }
-          }
-
-          if (ok) {
-            candidates.push(center);
-          }
-        }
-      }
-
-      candidates.sort((center1, center2) => angle(center1, node) - angle(center2, node));
-      if (candidates.length) {
-        let center = candidates[0];
+      let center = findBallCenter({node, ballDiameter: range});
+      if (center) {
         currentBall = {
           circle: haloLayer
             .circle(range)
