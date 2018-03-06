@@ -9,6 +9,100 @@ const NODE_CIRCLE_RADIUS = 2;
 
 let draw;
 
+function getRandomColor() {
+  let samples = [
+    "#cc4049",
+    "#10cc4b",
+    "#1311cc",
+    "#06bdcc",
+    "#c101cc",
+    "#cc0371",
+  ];
+  return samples[Math.floor(Math.random() * 5)]
+}
+
+const rollBall = ({ball, afterRoll, edgeLayer, edgeColor, haloLayer}) => {
+  if (!ball) return;
+  let currentBall = ball;
+  let path = [];
+  const roll = () => {
+    let {center, node, diameter} = currentBall;
+    let candidates = node.neighbors.map((neighbor) => {
+      let [center1, center2] = findCenters({
+        x1: node.x,
+        y1: node.y,
+        x2: neighbor.x,
+        y2: neighbor.y,
+        radius: diameter / 2
+      });
+      let centerAngle = angle(node, center);
+      let center1Angle = angle(node, center1);
+      let center2Angle = angle(node, center2);
+
+      if (ccwAngle(centerAngle, center1Angle) > ccwAngle(centerAngle, center2Angle)) {
+        [center1, center2] = [center2, center1];
+        [center1Angle, center2Angle] = [center2Angle, center1Angle];
+      }
+
+      let chosenCenter = center1;
+      let diffAngle = ccwAngle(centerAngle, center1Angle);
+      if (ccwAngle(centerAngle, center1Angle) == 0) {
+        let a1 = angle(center, node);
+        let a2 = angle(center, neighbor);
+        if (ccwAngle(a2, a1) > 180) {
+          chosenCenter = center2;
+          diffAngle = ccwAngle(centerAngle, center2Angle);
+        }
+      }
+
+      return {
+        chosenCenter, neighbor, diffAngle
+      }
+    }).sort((a, b) => a.diffAngle - b.diffAngle);
+
+    if (candidates.length) {
+      let {chosenCenter, neighbor, diffAngle} = candidates[0];
+      if (path.length) {
+        let {from, to} = path[0];
+        if (from === node.id && to === neighbor.id) {
+          currentBall.circle.remove();
+          currentBall.nodeCircle.remove();
+          afterRoll(path);
+          return;
+        }
+      }
+
+      currentBall.circle.animate(50 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
+        currentBall.circle.remove();
+        currentBall.nodeCircle.remove();
+        let line = edgeLayer
+          .line(node.x, node.y, neighbor.x, neighbor.y)
+          .stroke({width: 0.5, color: edgeColor});
+        path.push({from: node.id, to: neighbor.id, line});
+        currentBall = {
+          circle: haloLayer
+            .circle(diameter)
+            .center(chosenCenter.x, chosenCenter.y)
+            .fill('none')
+            .stroke({color: '#f06', width: 0.5}),
+          center: chosenCenter,
+          node: neighbor,
+          nodeCircle:
+            haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
+              .center(neighbor.x, neighbor.y)
+              .fill('#24f'),
+          diameter
+        };
+        roll();
+      });
+    } else {
+      afterRoll(path);
+    }
+  };
+  roll();
+  return path;
+};
+
 const originPosition = ({x, y, svg}) => {
   let pt = svg.createSVGPoint();
   pt.x = x;
@@ -141,10 +235,28 @@ const drawNodes = ({nodes, nodeLayer}) => {
   return nodes;
 };
 
+function findCenterOnClick({nodes, ballDiameter, onFindCenter}) {
+  nodes.forEach(node => {
+    node.circle.off('click');
+    node.circle.click((e) => {
+      let center = findBallCenter({node, ballDiameter});
+      if (center) {
+        onFindCenter({center, node});
+      }
+    })
+  });
+
+  return nodes;
+}
+
 $('#generate-btn').click(function () {
 
 
-  if (draw) draw.remove();
+  if (draw) {
+    draw.remove();
+    $('#firstroll-btn').off('click');
+    $('#secondroll-btn').off('click');
+  }
 
   draw = SVG('graph-container').size("100%", "100%").panZoom();
   const svg = draw.node;
@@ -163,42 +275,35 @@ $('#generate-btn').click(function () {
 
   let currentBall;
 
-  let nodes = generateNodes({width, height, GRID_WIDTH, GRID_HEIGHT, V})
+  let nodes = generateNodes({width, height, GRID_WIDTH, GRID_HEIGHT, V});
   nodes = drawNodes({nodes, nodeLayer});
   nodes = processNeighbors({nodes, range});
-
-  nodes.forEach(node => {
-    node.circle.mousedown((e) => {
+  nodes = findCenterOnClick({
+    nodes, ballDiameter: range, onFindCenter: ({node, center}) => {
       if (currentBall) {
-        currentBall.circle.remove();
         currentBall.nodeCircle.remove();
+        currentBall.circle.remove();
       }
-      let center = findBallCenter({node, ballDiameter: range});
-      if (center) {
-        currentBall = {
-          circle: haloLayer
-            .circle(range)
-            .center(center.x, center.y)
-            .fill('none')
-            .stroke({color: '#f06', width: 0.5}),
-          center,
-          node,
-          nodeCircle:
-            haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
-              .center(node.x, node.y)
-              .fill('#24f')
-        }
-      } else {
-        console.log("Not found");
+      currentBall = {
+        circle: haloLayer
+          .circle(range)
+          .center(center.x, center.y)
+          .fill('none')
+          .stroke({color: '#f06', width: 0.5}),
+        center: center,
+        node: node,
+        nodeCircle:
+          haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
+            .center(node.x, node.y)
+            .fill('#24f'),
+        diameter: range,
       }
-    })
+    }
   });
-
 
   let state = 'normal';
   let isSeleting = false;
   let polylines = [];
-
   draw.mousedown((e) => {
     if (state === 'deleting') {
       isSeleting = true;
@@ -210,6 +315,7 @@ $('#generate-btn').click(function () {
 
   draw.mousemove((e) => {
     if (state === 'normal') {
+
 
     } else if (state === 'deleting') {
       if (isSeleting) {
@@ -269,159 +375,59 @@ $('#generate-btn').click(function () {
     state = 'normal';
   });
 
-  let path = [];
-  const roll = ({ballDiameter, afterRoll, edgeColor}) => {
-    let {center, node} = currentBall;
-    let candidates = node.neighbors.map((neighbor) => {
-      let [center1, center2] = findCenters({
-        x1: node.x,
-        y1: node.y,
-        x2: neighbor.x,
-        y2: neighbor.y,
-        radius: ballDiameter / 2
-      });
-      let centerAngle = angle(node, center);
-      let center1Angle = angle(node, center1);
-      let center2Angle = angle(node, center2);
-
-      if (ccwAngle(centerAngle, center1Angle) > ccwAngle(centerAngle, center2Angle)) {
-        [center1, center2] = [center2, center1];
-        [center1Angle, center2Angle] = [center2Angle, center1Angle];
-      }
-
-      let chosenCenter = center1;
-      let diffAngle = ccwAngle(centerAngle, center1Angle);
-      if (ccwAngle(centerAngle, center1Angle) == 0) {
-        let a1 = angle(center, node);
-        let a2 = angle(center, neighbor);
-        if (ccwAngle(a2, a1) > 180) {
-          chosenCenter = center2;
-          diffAngle = ccwAngle(centerAngle, center2Angle);
-        }
-      }
-
-      return {
-        chosenCenter, neighbor, diffAngle
-      }
-    }).sort((a, b) => a.diffAngle - b.diffAngle);
-
-    if (candidates.length) {
-      let {chosenCenter, neighbor, diffAngle} = candidates[0];
-      if (path.length) {
-        let {from, to} = path[0];
-        if (from === node.id && to === neighbor.id) {
-          currentBall.circle.remove();
-          currentBall.nodeCircle.remove();
-          afterRoll();
-          return;
-        }
-      }
-
-
-      currentBall.circle.animate(50 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
-        currentBall.circle.remove();
-        currentBall.nodeCircle.remove();
-        let line = edgeLayer.line(node.x, node.y, neighbor.x, neighbor.y).stroke({width: 0.5, color: edgeColor});
-        path.push({from: node.id, to: neighbor.id, line});
-        currentBall = {
-          circle: haloLayer
-            .circle(ballDiameter)
-            .center(chosenCenter.x, chosenCenter.y)
-            .fill('none')
-            .stroke({color: '#f06', width: 0.5}),
-          center: chosenCenter,
-          node: neighbor,
-          nodeCircle:
-            haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
-              .center(neighbor.x, neighbor.y)
-              .fill('#24f')
-        };
-        roll({ballDiameter, afterRoll, edgeColor});
-      });
-    } else {
-      afterRoll();
-    }
-  };
-
   $('#second-ball-input').on('input', (val) => {
-    processFirstRoll();
+    prepareSecondRoll();
 
   });
 
-
-  const processFirstRoll = () => {
-    $('#firstroll-btn').off('click');
-    $('#secondroll-btn').off('click');
+  const prepareSecondRoll = () => {
     let ballDiameter = parseInt($('#second-ball-input').val());
-    let ids = new Set(path.map(({from, to}) => from));
-    let boundNodes = nodes.filter(node => ids.has(node.id));
-    let otherNodes = nodes.filter(node => !ids.has(node.id));
-    otherNodes.forEach(node => node.circle.fill('#d5d5d5'));
-    processNeighbors({nodes: boundNodes, range: ballDiameter});
-    boundNodes.forEach(node => {
-      node.circle.off('mousedown');
-      node.circle.mousedown((e) => {
-        if (currentBall) {
-          currentBall.circle.remove();
-          currentBall.nodeCircle.remove();
+    nodes = processNeighbors({nodes, range: ballDiameter});
+    nodes = findCenterOnClick({
+      nodes, ballDiameter, onFindCenter: ({node, center}) => {
+        currentBall = {
+          circle: haloLayer
+            .circle(ballDiameter)
+            .center(center.x, center.y)
+            .fill('none')
+            .stroke({color: '#f06', width: 0.5}),
+          center,
+          node,
+          diameter: ballDiameter,
+          nodeCircle:
+            haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
+              .center(node.x, node.y)
+              .fill('#24f')
         }
-        let candidates = [];
-        for (let neighbor of node.neighbors) {
-          let {x: x1, y: y1} = node;
-          let {x: x2, y: y2} = neighbor;
-
-          for (let center of findCenters({x1, y1, x2, y2, radius: ballDiameter / 2})) {
-            let ok = true;
-            for (let otherNeighbor of node.neighbors) {
-              if (otherNeighbor === neighbor) continue;
-              if (distance(center, otherNeighbor) < ballDiameter / 2) {
-                ok = false;
-              }
-            }
-
-            if (ok) {
-              candidates.push(center);
-            }
-          }
-        }
-
-        candidates.sort((center1, center2) => angle(center1, node) - angle(center2, node));
-        if (candidates.length) {
-          let center = candidates[0];
-          currentBall = {
-            circle: haloLayer
-              .circle(ballDiameter)
-              .center(center.x, center.y)
-              .fill('none')
-              .stroke({color: '#f06', width: 0.5}),
-            center,
-            node,
-            nodeCircle:
-              haloLayer.circle(5 * NODE_CIRCLE_RADIUS)
-                .center(node.x, node.y)
-                .fill('#24f')
-          }
-        } else {
-          console.log("Not found");
-        }
-      })
+      }
     });
 
+    $('#secondroll-btn').off('click');
     $('#secondroll-btn').click(() => {
-      path = [];
-      roll({
-        ballDiameter, afterRoll: () => {
-        }, edgeColor: '#ba2a3c'
+      rollBall({
+        ball: currentBall, edgeLayer, haloLayer, afterRoll: () => {
+        }, edgeColor: getRandomColor()
       })
     })
   };
 
-  $('#firstroll-btn').off('click');
   $('#firstroll-btn').click(() => {
-    path = [];
     processNeighbors({nodes, range});
-    roll({ballDiameter: range, afterRoll: processFirstRoll, edgeColor: '#13f'});
+    rollBall({
+      ball: currentBall, edgeLayer, haloLayer,
+      edgeColor: '#13f',
+      afterRoll: (path) => {
+        let ids = new Set(path.map(({from, to}) => from));
+        let otherNodes = nodes.filter(node => !ids.has(node.id));
+        otherNodes.forEach(node => node.circle.fill('#d5d5d5'));
+        nodes = nodes.filter(node => ids.has(node.id));
+
+        prepareSecondRoll()
+      },
+    });
+    $('#firstroll-btn').off('click')
   });
 
 
 });
+
