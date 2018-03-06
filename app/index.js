@@ -26,7 +26,7 @@ const distance = (p1, p2) => {
 const ccwAngle = (a, b) => {
   // from a to b
   let r = b - a;
-  if (r <= 0) return r + 360;
+  if (r < 0) return r + 360;
   else return r;
 }
 
@@ -247,30 +247,35 @@ $('#generate-btn').click(function () {
   });
 
   let path = [];
-  const roll = () => {
-    let {center, node, circle} = currentBall;
+  const roll = ({ballDiameter, afterRoll, edgeColor}) => {
+    let {center, node} = currentBall;
     let candidates = node.neighbors.map((neighbor) => {
       let [center1, center2] = findCenters({
         x1: node.x,
         y1: node.y,
         x2: neighbor.x,
         y2: neighbor.y,
-        radius: range / 2
+        radius: ballDiameter / 2
       });
       let centerAngle = angle(node, center);
       let center1Angle = angle(node, center1);
       let center2Angle = angle(node, center2);
 
-      let chosenCenter;
-      let diffAngle;
       if (ccwAngle(centerAngle, center1Angle) > ccwAngle(centerAngle, center2Angle)) {
-        chosenCenter = center2;
-        diffAngle = ccwAngle(centerAngle, center2Angle);
-      } else {
-        chosenCenter = center1;
-        diffAngle = ccwAngle(centerAngle, center1Angle);
+        [center1, center2] = [center2, center1];
+        [center1Angle, center2Angle] = [center2Angle, center1Angle];
       }
-      if (diffAngle === 0) diffAngle = 9999;
+
+      let chosenCenter = center1;
+      let diffAngle = ccwAngle(centerAngle, center1Angle);
+      if (ccwAngle(centerAngle, center1Angle) == 0) {
+        let a1 = angle(center, node);
+        let a2 = angle(center, neighbor);
+        if (ccwAngle(a2, a1) > 180) {
+          chosenCenter = center2;
+          diffAngle = ccwAngle(centerAngle, center2Angle);
+        }
+      }
 
       return {
         chosenCenter, neighbor, diffAngle
@@ -279,25 +284,25 @@ $('#generate-btn').click(function () {
 
     if (candidates.length) {
       let {chosenCenter, neighbor, diffAngle} = candidates[0];
-      if (path.length){
+      if (path.length) {
         let {from, to} = path[0];
         if (from === node.id && to === neighbor.id) {
           currentBall.circle.remove();
           currentBall.nodeCircle.remove();
-          processFirstRoll();
+          afterRoll();
           return;
         }
       }
 
-      path.push({from: node.id, to: neighbor.id});
 
-      currentBall.circle.animate(500 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
+      currentBall.circle.animate(50 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
-        edgeLayer.line(node.x, node.y, neighbor.x, neighbor.y).stroke({width: 0.5, color: '#13f'});
+        let line = edgeLayer.line(node.x, node.y, neighbor.x, neighbor.y).stroke({width: 0.5, color: edgeColor});
+        path.push({from: node.id, to: neighbor.id, line});
         currentBall = {
           circle: haloLayer
-            .circle(range)
+            .circle(ballDiameter)
             .center(chosenCenter.x, chosenCenter.y)
             .fill('none')
             .stroke({color: '#f06', width: 0.5}),
@@ -308,20 +313,27 @@ $('#generate-btn').click(function () {
               .center(neighbor.x, neighbor.y)
               .fill('#24f')
         };
-        roll();
+        roll({ballDiameter, afterRoll, edgeColor});
       });
+    } else {
+      afterRoll();
     }
   };
+
+  $('#second-ball-input').on('input', (val) => {
+    processFirstRoll();
+
+  });
 
 
   const processFirstRoll = () => {
     $('#firstroll-btn').off('click');
-    let ballDiameter = 80;
+    $('#secondroll-btn').off('click');
+    let ballDiameter = parseInt($('#second-ball-input').val());
     let ids = new Set(path.map(({from, to}) => from));
     let boundNodes = nodes.filter(node => ids.has(node.id));
     let otherNodes = nodes.filter(node => !ids.has(node.id));
     otherNodes.forEach(node => node.circle.fill('#d5d5d5'));
-    currentBall = null;
     processNeighbors({nodes: boundNodes, range: ballDiameter});
     boundNodes.forEach(node => {
       node.circle.off('mousedown');
@@ -371,13 +383,21 @@ $('#generate-btn').click(function () {
         }
       })
     });
+
+    $('#secondroll-btn').click(() => {
+      path = [];
+      roll({
+        ballDiameter, afterRoll: () => {
+        }, edgeColor: '#ba2a3c'
+      })
+    })
   };
 
   $('#firstroll-btn').off('click');
   $('#firstroll-btn').click(() => {
     path = [];
     processNeighbors({nodes, range});
-    roll();
+    roll({ballDiameter: range, afterRoll: processFirstRoll, edgeColor: '#13f'});
   });
 
 

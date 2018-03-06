@@ -195,7 +195,7 @@ var distance = function distance(p1, p2) {
 var ccwAngle = function ccwAngle(a, b) {
   // from a to b
   var r = b - a;
-  if (r <= 0) return r + 360;else return r;
+  if (r < 0) return r + 360;else return r;
 };
 
 var findCenters = function findCenters(_ref2) {
@@ -567,11 +567,13 @@ $('#generate-btn').click(function () {
   });
 
   var path = [];
-  var roll = function roll() {
+  var roll = function roll(_ref6) {
+    var ballDiameter = _ref6.ballDiameter,
+        afterRoll = _ref6.afterRoll,
+        edgeColor = _ref6.edgeColor;
     var _currentBall = currentBall,
         center = _currentBall.center,
-        node = _currentBall.node,
-        circle = _currentBall.circle;
+        node = _currentBall.node;
 
     var candidates = node.neighbors.map(function (neighbor) {
       var _findCenters = findCenters({
@@ -579,7 +581,7 @@ $('#generate-btn').click(function () {
         y1: node.y,
         x2: neighbor.x,
         y2: neighbor.y,
-        radius: range / 2
+        radius: ballDiameter / 2
       }),
           _findCenters2 = _slicedToArray(_findCenters, 2),
           center1 = _findCenters2[0],
@@ -589,16 +591,25 @@ $('#generate-btn').click(function () {
       var center1Angle = angle(node, center1);
       var center2Angle = angle(node, center2);
 
-      var chosenCenter = void 0;
-      var diffAngle = void 0;
       if (ccwAngle(centerAngle, center1Angle) > ccwAngle(centerAngle, center2Angle)) {
-        chosenCenter = center2;
-        diffAngle = ccwAngle(centerAngle, center2Angle);
-      } else {
-        chosenCenter = center1;
-        diffAngle = ccwAngle(centerAngle, center1Angle);
+        var _ref7 = [center2, center1];
+        center1 = _ref7[0];
+        center2 = _ref7[1];
+        var _ref8 = [center2Angle, center1Angle];
+        center1Angle = _ref8[0];
+        center2Angle = _ref8[1];
       }
-      if (diffAngle === 0) diffAngle = 9999;
+
+      var chosenCenter = center1;
+      var diffAngle = ccwAngle(centerAngle, center1Angle);
+      if (ccwAngle(centerAngle, center1Angle) == 0) {
+        var a1 = angle(center, node);
+        var a2 = angle(center, neighbor);
+        if (ccwAngle(a2, a1) > 180) {
+          chosenCenter = center2;
+          diffAngle = ccwAngle(centerAngle, center2Angle);
+        }
+      }
 
       return {
         chosenCenter: chosenCenter, neighbor: neighbor, diffAngle: diffAngle
@@ -621,34 +632,40 @@ $('#generate-btn').click(function () {
         if (from === node.id && to === neighbor.id) {
           currentBall.circle.remove();
           currentBall.nodeCircle.remove();
-          processFirstRoll();
+          afterRoll();
           return;
         }
       }
 
-      path.push({ from: node.id, to: neighbor.id });
-
-      currentBall.circle.animate(500 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(function () {
+      currentBall.circle.animate(50 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(function () {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
-        edgeLayer.line(node.x, node.y, neighbor.x, neighbor.y).stroke({ width: 0.5, color: '#13f' });
+        var line = edgeLayer.line(node.x, node.y, neighbor.x, neighbor.y).stroke({ width: 0.5, color: edgeColor });
+        path.push({ from: node.id, to: neighbor.id, line: line });
         currentBall = {
-          circle: haloLayer.circle(range).center(chosenCenter.x, chosenCenter.y).fill('none').stroke({ color: '#f06', width: 0.5 }),
+          circle: haloLayer.circle(ballDiameter).center(chosenCenter.x, chosenCenter.y).fill('none').stroke({ color: '#f06', width: 0.5 }),
           center: chosenCenter,
           node: neighbor,
           nodeCircle: haloLayer.circle(5 * NODE_CIRCLE_RADIUS).center(neighbor.x, neighbor.y).fill('#24f')
         };
-        roll();
+        roll({ ballDiameter: ballDiameter, afterRoll: afterRoll, edgeColor: edgeColor });
       });
+    } else {
+      afterRoll();
     }
   };
 
+  $('#second-ball-input').on('input', function (val) {
+    processFirstRoll();
+  });
+
   var processFirstRoll = function processFirstRoll() {
     $('#firstroll-btn').off('click');
-    var ballDiameter = 80;
-    var ids = new Set(path.map(function (_ref6) {
-      var from = _ref6.from,
-          to = _ref6.to;
+    $('#secondroll-btn').off('click');
+    var ballDiameter = parseInt($('#second-ball-input').val());
+    var ids = new Set(path.map(function (_ref9) {
+      var from = _ref9.from,
+          to = _ref9.to;
       return from;
     }));
     var boundNodes = nodes.filter(function (node) {
@@ -660,7 +677,6 @@ $('#generate-btn').click(function () {
     otherNodes.forEach(function (node) {
       return node.circle.fill('#d5d5d5');
     });
-    currentBall = null;
     processNeighbors({ nodes: boundNodes, range: ballDiameter });
     boundNodes.forEach(function (node) {
       node.circle.off('mousedown');
@@ -769,13 +785,20 @@ $('#generate-btn').click(function () {
         }
       });
     });
+
+    $('#secondroll-btn').click(function () {
+      path = [];
+      roll({
+        ballDiameter: ballDiameter, afterRoll: function afterRoll() {}, edgeColor: '#ba2a3c'
+      });
+    });
   };
 
   $('#firstroll-btn').off('click');
   $('#firstroll-btn').click(function () {
     path = [];
     processNeighbors({ nodes: nodes, range: range });
-    roll();
+    roll({ ballDiameter: range, afterRoll: processFirstRoll, edgeColor: '#13f' });
   });
 });
 });
