@@ -453,6 +453,10 @@ function init({nodes, width, height, range}) {
     boundNodes = processNeighbors({nodes: boundNodes, range: ballDiameter});
     boundNodes = findCenterOnClick({
       nodes: boundNodes, ballDiameter, onFindCenter: ({node, center}) => {
+        if (currentBall) {
+          currentBall.circle.remove();
+          currentBall.nodeCircle.remove();
+        }
         currentBall = {
           circle: haloLayer
             .circle(ballDiameter)
