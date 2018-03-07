@@ -2,7 +2,7 @@
 <head>
   <meta charset="utf-8">
   <link rel="stylesheet" href="/app.css">
-  <title>Alpha Shape</title>
+  <title>Rolling Ball</title>
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css">
   <!--<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"-->
   <!--integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"-->
@@ -20,17 +20,15 @@
 <body>
 <div class="container-fluid" style="padding: 10px">
   <div class="row" id="content">
-    <div id="graph-container" class="col-sm-9">
-    </div>
     <div id="panel" class="col-sm-3">
       <div class="row">
         <div class="col-sm-6">
           <label>Height:</label>
-          <input type="text" id="height-input" class="form-control" value="600">
+          <input type="text" id="height-input" class="form-control" value="800">
         </div>
         <div class="col-sm-6">
           <label>Width:</label>
-          <input type="text" id="width-input" class="form-control" value="600">
+          <input type="text" id="width-input" class="form-control" value="800">
         </div>
       </div>
       <div class="row">
@@ -46,48 +44,57 @@
       <label>Radio range:</label>
       <input type="text" id="range-input" class="form-control" value="40">
       <label>Number of sensors:</label>
-      <input type="text" id="v-input" class="form-control" value="1200">
+      <input type="text" id="v-input" class="form-control" value="2000">
       <label>Second ball diameter</label>
       <input type="text" id="second-ball-input" class="form-control" value="90">
       <div class="row">
         <div class="col">
-
           <button
               id="generate-btn"
-              type="button" class="btn btn-primary float-right"
-              title="Generate a random network with given parameters"
-              data-placement="bottom"
+              type="button" class="btn btn-primary btn-block"
               data-toggle="tooltip">Generate
           </button>
         </div>
-
       </div>
       <div class="row" style="margin-top: 10px">
         <div class="col">
 
+          <input type="file" class="" id="file-input" style="display: none"/></span>
+          <button
+              id="generate-file-btn"
+              type="button" class="btn btn-primary btn-block"
+              data-toggle="tooltip">Load from file
+          </button>
+        </div>
+
+      </div>
+      <div class="row" style="margin-top: 10px">
+        <div class="col">
+          <button
+              id="save-btn"
+              type="button" class="btn btn-primary btn-block"
+              data-toggle="tooltip">Save
+          </button>
+        </div>
+      </div>
+      <div class="row" style="margin-top: 10px">
+        <div class="col-sm-6">
           <button
               id="firstroll-btn"
-              type="button" class="btn btn-primary float-right"
-              title="Generate a random network with given parameters"
-              data-placement="bottom"
-              data-toggle="tooltip">First Roll
+              type="button" class="btn btn-success btn-block"
+          >First Roll
           </button>
         </div>
-
-      </div>
-      <div class="row" style="margin-top: 10px">
-        <div class="col">
-
+        <div class="col-sm-6">
           <button
               id="secondroll-btn"
-              type="button" class="btn btn-primary float-right"
-              title="Generate a random network with given parameters"
-              data-placement="bottom"
-              data-toggle="tooltip">Second Roll
+              type="button" class="btn btn-success btn-block"
+          >Second Roll
           </button>
         </div>
-
       </div>
+    </div>
+    <div id="graph-container" class="col-sm-9">
     </div>
   </div>
 </div>

@@ -3,7 +3,7 @@
   height: 100%;
 }
 #graph-container {
-  min-height: 1080px;
+  min-height: 100vh;
 }
 #panel {
   padding: 15px;

@@ -3,25 +3,41 @@ require('svg.panzoom.js');
 import SVG from 'svg.js';
 import Mousetrap from 'mousetrap';
 import inPolygon from 'point-in-polygon';
+import convexHull from 'convex-hull';
+import FileSaver from 'file-saver';
 
 const NODE_CIRCLE_RADIUS = 2;
 
 
 let draw;
+let currentStep = 0;
 
 function getRandomColor() {
-  let samples = [
-    "#cc4049",
-    "#10cc4b",
-    "#1311cc",
-    "#06bdcc",
-    "#c101cc",
-    "#cc0371",
-  ];
-  return samples[Math.floor(Math.random() * 5)]
+  function rainbow(numOfSteps, step) {
+    // This function generates vibrant, "evenly spaced" colours (i.e. no clustering). This is ideal for creating easily distinguishable vibrant markers in Google Maps and other apps.
+    // Adam Cole, 2011-Sept-14
+    // HSV to RBG adapted from: http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
+    var r, g, b;
+    var h = step / numOfSteps;
+    var i = ~~(h * 6);
+    var f = h * 6 - i;
+    var q = 1 - f;
+    switch(i % 6){
+      case 0: r = 1; g = f; b = 0; break;
+      case 1: r = q; g = 1; b = 0; break;
+      case 2: r = 0; g = 1; b = f; break;
+      case 3: r = 0; g = q; b = 1; break;
+      case 4: r = f; g = 0; b = 1; break;
+      case 5: r = 1; g = 0; b = q; break;
+    }
+    var c = "#" + ("00" + (~ ~(r * 255)).toString(16)).slice(-2) + ("00" + (~ ~(g * 255)).toString(16)).slice(-2) + ("00" + (~ ~(b * 255)).toString(16)).slice(-2);
+    return (c);
+  }
+
+  return rainbow(5, currentStep++);
 }
 
-const rollBall = ({ball, afterRoll, edgeLayer, edgeColor, haloLayer}) => {
+const rollBall = ({ball, edgeLayer, afterRoll, edgeColor, haloLayer}) => {
   if (!ball) return;
   let currentBall = ball;
   let path = [];
@@ -77,8 +93,8 @@ const rollBall = ({ball, afterRoll, edgeLayer, edgeColor, haloLayer}) => {
         currentBall.nodeCircle.remove();
         let line = edgeLayer
           .line(node.x, node.y, neighbor.x, neighbor.y)
-          .stroke({width: 0.5, color: edgeColor});
-        path.push({from: node.id, to: neighbor.id, line});
+          .stroke({width: 1, color: edgeColor});
+        path.push({from: node.id, to: neighbor.id, line, edgeColor});
         currentBall = {
           circle: haloLayer
             .circle(diameter)
@@ -122,7 +138,7 @@ const ccwAngle = (a, b) => {
   let r = b - a;
   if (r < 0) return r + 360;
   else return r;
-}
+};
 
 const findCenters = ({x1, y1, x2, y2, radius: r}) => {
   let q = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
@@ -173,7 +189,7 @@ const findBallCenter = ({node, ballDiameter}) => {
     }
   }
 
-  candidates.sort((center1, center2) => angle(center1, node) - angle(center2, node));
+  candidates.sort((center1, center2) => angle(node, center1) - angle(node, center2));
   if (candidates.length) {
     return candidates[0];
   } else {
@@ -249,13 +265,59 @@ function findCenterOnClick({nodes, ballDiameter, onFindCenter}) {
   return nodes;
 }
 
+function createIndicatorLayer({draw, width, height}) {
+  let layer = draw.group().move(width + 20, 20);
+  let currentY = 40;
+  layer.addIndicator = ({color, name}) => {
+    layer.line(0, currentY, 200, currentY).stroke({width: 0.5, color})
+    layer.text(name).font({family: "Menlo"}).move(210, currentY - 8);
+    currentY += 20;
+  };
+
+  return layer;
+}
+
 $('#generate-btn').click(function () {
+  const height = parseInt($('#height-input').val());
+  const width = parseInt($('#width-input').val());
+  const range = parseInt($('#range-input').val());
+  const GRID_HEIGHT = parseInt($('#grid-height-input').val());
+  const GRID_WIDTH = parseInt($('#grid-width-input').val());
+  const V = parseInt($('#v-input').val());
+  let nodes = generateNodes({width, height, GRID_WIDTH, GRID_HEIGHT, V});
+  init({nodes, width, height, range});
+});
 
 
+let file = null;
+$('#file-input').change(function(){
+  console.log("day ne");
+  if (this.files.length) {
+    file = this.files[0];
+    let reader = new FileReader();
+    if (file) {
+
+      reader.onload = function(event) {
+        let {nodes, width, height, range} = JSON.parse(event.target.result);
+        init({nodes, width, height, range})
+      };
+
+      reader.readAsText(file);
+    }
+  }
+});
+
+$('#generate-file-btn').click(function(){
+  $('#file-input').trigger("click");
+});
+
+
+function init({nodes, width, height, range}) {
   if (draw) {
     draw.remove();
     $('#firstroll-btn').off('click');
     $('#secondroll-btn').off('click');
+    $('#save-btn').off('click');
   }
 
   draw = SVG('graph-container').size("100%", "100%").panZoom();
@@ -264,18 +326,12 @@ $('#generate-btn').click(function () {
   const haloLayer = draw.group();
   const edgeLayer = draw.group();
   const nodeLayer = draw.group();
+  const indicatorLayer = createIndicatorLayer({draw, width, height});
 
-
-  const height = parseInt($('#height-input').val());
-  const width = parseInt($('#width-input').val());
-  const range = parseInt($('#range-input').val());
-  const GRID_HEIGHT = parseInt($('#grid-height-input').val());
-  const GRID_WIDTH = parseInt($('#grid-width-input').val());
-  const V = parseInt($('#v-input').val());
-
+  let boundNodes = [];
+  let boundaries = [];
   let currentBall;
 
-  let nodes = generateNodes({width, height, GRID_WIDTH, GRID_HEIGHT, V});
   nodes = drawNodes({nodes, nodeLayer});
   nodes = processNeighbors({nodes, range});
   nodes = findCenterOnClick({
@@ -357,12 +413,12 @@ $('#generate-btn').click(function () {
   });
 
   Mousetrap.bind(['del', 'backspace'], () => {
-    for (let node of nodes) {
-      if (node.halo) {
+    nodes
+      .filter(node => node.halo)
+      .forEach(node => {
         node.halo.remove();
         node.circle.remove();
-      }
-    }
+      });
     nodes = nodes.filter(node => !node.halo);
     polylines.forEach(p => p.remove());
     processNeighbors({nodes, range});
@@ -373,6 +429,18 @@ $('#generate-btn').click(function () {
 
   Mousetrap.bind('esc', () => {
     state = 'normal';
+    nodes
+      .filter(node => node.halo)
+      .forEach(node => {
+        node.halo.remove();
+        delete node.halo;
+      });
+    polylines.forEach(p => p.remove());
+  });
+
+  $('#save-btn').click(() => {
+    let blob = new Blob([JSON.stringify({width, height, range, nodes: nodes.map(({x, y, id}) => ({x, y, id}))})]);
+    FileSaver.saveAs(blob, "network.json");
   });
 
   $('#second-ball-input').on('input', (val) => {
@@ -382,9 +450,9 @@ $('#generate-btn').click(function () {
 
   const prepareSecondRoll = () => {
     let ballDiameter = parseInt($('#second-ball-input').val());
-    nodes = processNeighbors({nodes, range: ballDiameter});
-    nodes = findCenterOnClick({
-      nodes, ballDiameter, onFindCenter: ({node, center}) => {
+    boundNodes = processNeighbors({nodes: boundNodes, range: ballDiameter});
+    boundNodes = findCenterOnClick({
+      nodes: boundNodes, ballDiameter, onFindCenter: ({node, center}) => {
         currentBall = {
           circle: haloLayer
             .circle(ballDiameter)
@@ -404,30 +472,53 @@ $('#generate-btn').click(function () {
 
     $('#secondroll-btn').off('click');
     $('#secondroll-btn').click(() => {
+      let color = getRandomColor();
       rollBall({
-        ball: currentBall, edgeLayer, haloLayer, afterRoll: () => {
-        }, edgeColor: getRandomColor()
+        ball: currentBall, edgeLayer, haloLayer,
+        edgeColor: color,
+        afterRoll: (path) => {
+          let boundary = {name: `Diameter ${currentBall.diameter}`, color, path};
+          indicatorLayer.addIndicator({color, name: boundary.name});
+        }
       })
     })
   };
 
   $('#firstroll-btn').click(() => {
     processNeighbors({nodes, range});
+    let color = '#d5d5d5';
     rollBall({
       ball: currentBall, edgeLayer, haloLayer,
-      edgeColor: '#13f',
+      edgeColor: color,
       afterRoll: (path) => {
+        let boundary = {name: 'Bound (First Roll)', color, path};
+        boundaries.push(boundary);
+        indicatorLayer.addIndicator({color, name: boundary.name});
+
+
         let ids = new Set(path.map(({from, to}) => from));
         let otherNodes = nodes.filter(node => !ids.has(node.id));
         otherNodes.forEach(node => node.circle.fill('#d5d5d5'));
-        nodes = nodes.filter(node => ids.has(node.id));
+        boundNodes = nodes.filter(node => ids.has(node.id));
 
-        prepareSecondRoll()
-      },
+
+        // draw convex hull
+        let convexHullColor = getRandomColor();
+        let ch = convexHull(boundNodes.map(({x, y}) => [x, y]));
+        for (let i = 0; i < ch.length; i++) {
+          let {x: x1, y: y1} = boundNodes[ch[i][0]];
+          let {x: x2, y: y2} = boundNodes[ch[i][1]];
+          edgeLayer
+            .line(x1, y1, x2, y2)
+            .stroke({width: 1, color: convexHullColor});
+        }
+        indicatorLayer.addIndicator({name: 'Convex hull', color: convexHullColor});
+
+
+        prepareSecondRoll();
+      }
     });
     $('#firstroll-btn').off('click')
   });
-
-
-});
+}
 
