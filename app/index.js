@@ -431,7 +431,7 @@ function init({nodes, width, height, range}) {
     }
   });
 
-  Mousetrap.bind(['command+d', 'ctrl+d'], () => {
+  Mousetrap.bind(['command+d', 'ctrl+shift+d'], () => {
     if (state === 'normal') {
       state = 'deleting';
       draw.panZoom(false)
@@ -475,7 +475,7 @@ function init({nodes, width, height, range}) {
   });
 
   $('#export-btn').click(() => {
-    SVGtoPNG.saveSvgAsPng(svg,  "image.png", {backgroundColor: '#fff'});
+    SVGtoPNG.saveSvgAsPng(svg,  "image.png", {backgroundColor: '#fff', scale: 2});
   });
 
   const prepareSecondRoll = () => {
