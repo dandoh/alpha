@@ -5,6 +5,7 @@ import Mousetrap from 'mousetrap';
 import inPolygon from 'point-in-polygon';
 import convexHull from 'convex-hull';
 import FileSaver from 'file-saver';
+import SVGtoPNG from 'save-svg-as-png';
 
 const NODE_CIRCLE_RADIUS = 2;
 
@@ -22,15 +23,39 @@ function getRandomColor() {
     var i = ~~(h * 6);
     var f = h * 6 - i;
     var q = 1 - f;
-    switch(i % 6){
-      case 0: r = 1; g = f; b = 0; break;
-      case 1: r = q; g = 1; b = 0; break;
-      case 2: r = 0; g = 1; b = f; break;
-      case 3: r = 0; g = q; b = 1; break;
-      case 4: r = f; g = 0; b = 1; break;
-      case 5: r = 1; g = 0; b = q; break;
+    switch (i % 6) {
+      case 0:
+        r = 1;
+        g = f;
+        b = 0;
+        break;
+      case 1:
+        r = q;
+        g = 1;
+        b = 0;
+        break;
+      case 2:
+        r = 0;
+        g = 1;
+        b = f;
+        break;
+      case 3:
+        r = 0;
+        g = q;
+        b = 1;
+        break;
+      case 4:
+        r = f;
+        g = 0;
+        b = 1;
+        break;
+      case 5:
+        r = 1;
+        g = 0;
+        b = q;
+        break;
     }
-    var c = "#" + ("00" + (~ ~(r * 255)).toString(16)).slice(-2) + ("00" + (~ ~(g * 255)).toString(16)).slice(-2) + ("00" + (~ ~(b * 255)).toString(16)).slice(-2);
+    var c = "#" + ("00" + (~~(r * 255)).toString(16)).slice(-2) + ("00" + (~~(g * 255)).toString(16)).slice(-2) + ("00" + (~~(b * 255)).toString(16)).slice(-2);
     return (c);
   }
 
@@ -269,8 +294,8 @@ function createIndicatorLayer({draw, width, height}) {
   let layer = draw.group().move(width + 20, 20);
   let currentY = 40;
   layer.addIndicator = ({color, name}) => {
-    layer.line(0, currentY, 200, currentY).stroke({width: 0.5, color})
-    layer.text(name).font({family: "Menlo"}).move(210, currentY - 8);
+    layer.line(0, currentY, 100, currentY).stroke({width: 0.5, color})
+    layer.text(name).font({family: "Menlo"}).move(110, currentY - 8);
     currentY += 20;
   };
 
@@ -290,14 +315,14 @@ $('#generate-btn').click(function () {
 
 
 let file = null;
-$('#file-input').change(function(){
+$('#file-input').change(function () {
   console.log("day ne");
   if (this.files.length) {
     file = this.files[0];
     let reader = new FileReader();
     if (file) {
 
-      reader.onload = function(event) {
+      reader.onload = function (event) {
         let {nodes, width, height, range} = JSON.parse(event.target.result);
         init({nodes, width, height, range})
       };
@@ -307,7 +332,7 @@ $('#file-input').change(function(){
   }
 });
 
-$('#generate-file-btn').click(function(){
+$('#generate-file-btn').click(function () {
   $('#file-input').trigger("click");
 });
 
@@ -318,6 +343,7 @@ function init({nodes, width, height, range}) {
     $('#firstroll-btn').off('click');
     $('#secondroll-btn').off('click');
     $('#save-btn').off('click');
+    $('#export-btn').off('click');
   }
 
   draw = SVG('graph-container').size("100%", "100%").panZoom();
@@ -436,6 +462,7 @@ function init({nodes, width, height, range}) {
         delete node.halo;
       });
     polylines.forEach(p => p.remove());
+    polylines = [];
   });
 
   $('#save-btn').click(() => {
@@ -445,14 +472,19 @@ function init({nodes, width, height, range}) {
 
   $('#second-ball-input').on('input', (val) => {
     prepareSecondRoll();
+  });
 
+  $('#export-btn').click(() => {
+    SVGtoPNG.saveSvgAsPng(svg,  "image.png", {backgroundColor: '#fff'});
   });
 
   const prepareSecondRoll = () => {
     let ballDiameter = parseInt($('#second-ball-input').val());
     boundNodes = processNeighbors({nodes: boundNodes, range: ballDiameter});
     boundNodes = findCenterOnClick({
-      nodes: boundNodes, ballDiameter, onFindCenter: ({node, center}) => {
+      nodes: boundNodes,
+      ballDiameter,
+      onFindCenter: ({node, center}) => {
         if (currentBall) {
           currentBall.circle.remove();
           currentBall.nodeCircle.remove();
