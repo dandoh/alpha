@@ -6,6 +6,7 @@ import inPolygon from 'point-in-polygon';
 import convexHull from 'convex-hull';
 import FileSaver from 'file-saver';
 import SVGtoPNG from 'save-svg-as-png';
+import distanceToLineSegment from 'distance-to-line-segment'
 
 const NODE_CIRCLE_RADIUS = 2;
 
@@ -13,56 +14,56 @@ const NODE_CIRCLE_RADIUS = 2;
 let draw;
 let currentStep = 0;
 
-function getRandomColor() {
-  function rainbow(numOfSteps, step) {
-    // This function generates vibrant, "evenly spaced" colours (i.e. no clustering). This is ideal for creating easily distinguishable vibrant markers in Google Maps and other apps.
-    // Adam Cole, 2011-Sept-14
-    // HSV to RBG adapted from: http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
-    var r, g, b;
-    var h = step / numOfSteps;
-    var i = ~~(h * 6);
-    var f = h * 6 - i;
-    var q = 1 - f;
-    switch (i % 6) {
-      case 0:
-        r = 1;
-        g = f;
-        b = 0;
-        break;
-      case 1:
-        r = q;
-        g = 1;
-        b = 0;
-        break;
-      case 2:
-        r = 0;
-        g = 1;
-        b = f;
-        break;
-      case 3:
-        r = 0;
-        g = q;
-        b = 1;
-        break;
-      case 4:
-        r = f;
-        g = 0;
-        b = 1;
-        break;
-      case 5:
-        r = 1;
-        g = 0;
-        b = q;
-        break;
-    }
-    var c = "#" + ("00" + (~~(r * 255)).toString(16)).slice(-2) + ("00" + (~~(g * 255)).toString(16)).slice(-2) + ("00" + (~~(b * 255)).toString(16)).slice(-2);
-    return (c);
+function rainbow(numOfSteps, step) {
+  // This function generates vibrant, "evenly spaced" colours (i.e. no clustering). This is ideal for creating easily distinguishable vibrant markers in Google Maps and other apps.
+  // Adam Cole, 2011-Sept-14
+  // HSV to RBG adapted from: http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
+  var r, g, b;
+  var h = step / numOfSteps;
+  var i = ~~(h * 6);
+  var f = h * 6 - i;
+  var q = 1 - f;
+  switch (i % 6) {
+    case 0:
+      r = 1;
+      g = f;
+      b = 0;
+      break;
+    case 1:
+      r = q;
+      g = 1;
+      b = 0;
+      break;
+    case 2:
+      r = 0;
+      g = 1;
+      b = f;
+      break;
+    case 3:
+      r = 0;
+      g = q;
+      b = 1;
+      break;
+    case 4:
+      r = f;
+      g = 0;
+      b = 1;
+      break;
+    case 5:
+      r = 1;
+      g = 0;
+      b = q;
+      break;
   }
-
-  return rainbow(5, currentStep++);
+  var c = "#" + ("00" + (~~(r * 255)).toString(16)).slice(-2) + ("00" + (~~(g * 255)).toString(16)).slice(-2) + ("00" + (~~(b * 255)).toString(16)).slice(-2);
+  return (c);
 }
 
-const rollBall = ({ball, edgeLayer, afterRoll, edgeColor, haloLayer}) => {
+function getRandomColor() {
+  return rainbow(4, currentStep++);
+}
+
+const rollBall = ({ball, edgeLayer, afterRoll, drawCenter, edgeColor, haloLayer}) => {
   if (!ball) return;
   let currentBall = ball;
   let path = [];
@@ -113,12 +114,19 @@ const rollBall = ({ball, edgeLayer, afterRoll, edgeColor, haloLayer}) => {
         }
       }
 
-      currentBall.circle.animate(50 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
+      currentBall.circle.animate(10 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
         let line = edgeLayer
           .line(node.x, node.y, neighbor.x, neighbor.y)
           .stroke({width: 1, color: edgeColor});
+
+        if (drawCenter) {
+          edgeLayer
+            .line(center.x, center.y, chosenCenter.x, chosenCenter.y)
+            .stroke({width: 1, color: edgeColor});
+        }
+
         path.push({from: node.id, to: neighbor.id, line, edgeColor});
         currentBall = {
           circle: haloLayer
@@ -251,13 +259,18 @@ const generateNodes = ({width, height, GRID_HEIGHT, GRID_WIDTH, V}) => {
 
 const processNeighbors = ({nodes, range}) => {
   let V = nodes.length;
-  for (let node of nodes) node.neighbors = [];
+  for (let node of nodes) {
+    node.neighbors = [];
+    node.neighborIds = [];
+  }
 
   for (let i = 0; i < V; i++) {
     for (let j = i + 1; j < V; j++) {
       if ((nodes[i].x - nodes[j].x) ** 2 + (nodes[i].y - nodes[j].y) ** 2 <= range ** 2) {
         nodes[i].neighbors.push(nodes[j]);
+        nodes[i].neighborIds.push(j);
         nodes[j].neighbors.push(nodes[i]);
+        nodes[j].neighborIds.push(i);
       }
     }
   }
@@ -475,7 +488,7 @@ function init({nodes, width, height, range}) {
   });
 
   $('#export-btn').click(() => {
-    SVGtoPNG.saveSvgAsPng(svg,  "image.png", {backgroundColor: '#fff', scale: 2});
+    SVGtoPNG.saveSvgAsPng(svg, "image.png", {backgroundColor: '#fff', scale: 2});
   });
 
   const prepareSecondRoll = () => {
@@ -511,6 +524,7 @@ function init({nodes, width, height, range}) {
       let color = getRandomColor();
       rollBall({
         ball: currentBall, edgeLayer, haloLayer,
+        drawCenter: true,
         edgeColor: color,
         afterRoll: (path) => {
           let boundary = {name: `Diameter ${currentBall.diameter}`, color, path};
@@ -526,16 +540,18 @@ function init({nodes, width, height, range}) {
     rollBall({
       ball: currentBall, edgeLayer, haloLayer,
       edgeColor: color,
+      drawCenter: false,
       afterRoll: (path) => {
         let boundary = {name: 'Bound (First Roll)', color, path};
         boundaries.push(boundary);
         indicatorLayer.addIndicator({color, name: boundary.name});
 
 
-        let ids = new Set(path.map(({from, to}) => from));
-        let otherNodes = nodes.filter(node => !ids.has(node.id));
+        let ids = path.map(({from, to}) => from);
+        let indexSet = new Set(ids);
+        let otherNodes = nodes.filter(node => !indexSet.has(node.id));
         otherNodes.forEach(node => node.circle.fill('#d5d5d5'));
-        boundNodes = nodes.filter(node => ids.has(node.id));
+        boundNodes = ids.map(id => nodes.find(node => node.id === id));
 
 
         // draw convex hull
@@ -549,6 +565,7 @@ function init({nodes, width, height, range}) {
             .stroke({width: 1, color: convexHullColor});
         }
         indicatorLayer.addIndicator({name: 'Convex hull', color: convexHullColor});
+        // drawRainbow({nodes, boundNodes, edgeLayer});
 
 
         prepareSecondRoll();
@@ -556,5 +573,49 @@ function init({nodes, width, height, range}) {
     });
     $('#firstroll-btn').off('click')
   });
+}
+
+// console.log(distToSegment({x: 1, y: 2}, {x: 100, y: 100}, {x: 200, y: 200}));
+function drawRainbow({nodes, boundNodes, edgeLayer}) {
+  let convexHullIndices = convexHull(boundNodes.map(({x, y}) => [x, y]));
+  let convexHullNodes = convexHullIndices.map(([from, to]) => boundNodes[from]);
+  let convexHullPolygon = convexHullNodes.map(({x, y}) => [x, y]);
+
+  let current = [];
+  let layers = [];
+  let marked = nodes.map(node => false);
+  for (let i = 0; i < convexHullIndices.length; i++) {
+    let p1 = boundNodes[convexHullIndices[i][0]];
+    let p2 = boundNodes[convexHullIndices[i][1]];
+    // let currentNodes = nodes.filter(node => distanceToLineSegment(p1.x, p1.y, p2.x, p2.y, node.x, node.y) < 5);
+    for (let i = 0; i < nodes.length; i++) {
+      let node = nodes[i];
+      if (!marked[i] && distanceToLineSegment(p1.x, p1.y, p2.x, p2.y, node.x, node.y) < 5) {
+        marked[i] = true;
+        current.push(i);
+      }
+    }
+  }
+
+  while (current.length) {
+    let next = [];
+    for (let u of current) {
+      for (let v of nodes[u].neighborIds) {
+        if (!marked[v] && inPolygon([nodes[v].x, nodes[v].y], convexHullPolygon)) {
+          next.push(v);
+          marked[v] = true;
+        }
+      }
+    }
+    layers.push(current);
+    current = next;
+  }
+
+  layers.forEach((layer, step) => {
+    let color = rainbow(layers.length, step);
+    layer.forEach(id => nodes[id].circle.fill(color));
+  })
+
+
 }
 
