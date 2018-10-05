@@ -114,7 +114,7 @@ const rollBall = ({ball, edgeLayer, afterRoll, drawCenter, edgeColor, haloLayer}
         }
       }
 
-      currentBall.circle.animate(10 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
+      currentBall.circle.animate(100 * diffAngle / 60).rotate(diffAngle, node.x, node.y).after(() => {
         currentBall.circle.remove();
         currentBall.nodeCircle.remove();
         let line = edgeLayer
